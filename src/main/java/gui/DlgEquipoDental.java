@@ -3,7 +3,12 @@ package gui;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
 
+import javax.persistence.EntityManager;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
@@ -13,6 +18,10 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JTextArea;
 import java.awt.Font;
+
+import entidades.Dentista;
+import entidades.EquipoDental;
+import util.JPAUtil;
 
 public class DlgEquipoDental extends JDialog implements ActionListener {
 
@@ -38,6 +47,8 @@ public class DlgEquipoDental extends JDialog implements ActionListener {
 	private JButton btnListar;
 	private JScrollPane scrollPane;
 	private JTextArea txtSalida;
+
+	private SimpleDateFormat formato = new SimpleDateFormat("yyyy-MM-dd");
 
 	private int tipoOperacion;
 
@@ -247,27 +258,147 @@ public class DlgEquipoDental extends JDialog implements ActionListener {
 	}
 
 	void cargarDentistas() {
-
+		EntityManager em = JPAUtil.getEntityManager();
+		try {
+			List<Dentista> dentistas = em.createQuery("SELECT d FROM Dentista d", Dentista.class).getResultList();
+			cboDentistas.removeAllItems();
+			for (Dentista dentista : dentistas) {
+				cboDentistas.addItem(dentista);
+			}
+		} catch (Exception e) {
+			mensajeError(e.getMessage());
+		} finally {
+			em.close();
+		}
 	}
 
 	void listar() {
-
+		EntityManager em = JPAUtil.getEntityManager();
+		try {
+			List<EquipoDental> equipos = em.createQuery("SELECT e FROM EquipoDental e", EquipoDental.class)
+					.getResultList();
+			txtSalida.setText("");
+			for (EquipoDental equipo : equipos) {
+				String dentista = "";
+				String correo = "";
+				String especialidad = "";
+				if (equipo.getDentista() != null) {
+					dentista = equipo.getDentista().getCop() + " - " + equipo.getDentista().getNombreCompleto();
+					correo = equipo.getDentista().getCorreo();
+					especialidad = equipo.getDentista().getEspecialidad().getTitulo();
+				}
+				imprimir("----------------------------------------------------------");
+				imprimir("Nro Equipo...........: " + equipo.getNroEquipo());
+				imprimir("Nombre...............: " + equipo.getNombre());
+				imprimir("Costo................: " + equipo.getCosto());
+				imprimir("Fecha de adquisicion.: " + formato.format(equipo.getFechaAdquisicion()));
+				imprimir("Dentista.............: " + dentista);
+				imprimir("Correo...............: " + correo);
+				imprimir("Especialidad.........: " + especialidad);
+				imprimir("Estado...............: " + descripcionEstado(equipo.getEstado()));
+			}
+			imprimir("----------------------------------------------------------");
+		} catch (Exception e) {
+			mensajeError(e.getMessage());
+		} finally {
+			em.close();
+		}
 	}
 
 	void adicionar() {
+		EntityManager em = JPAUtil.getEntityManager();
+		try {
+			EquipoDental equipo = new EquipoDental();
+			equipo.setNombre(txtNombre.getText());
+			equipo.setCosto(new BigDecimal(txtCosto.getText()));
+			equipo.setEstado(cboEstados.getSelectedItem().toString());
+			equipo.setFechaAdquisicion(new Date());
+			equipo.setDentista((Dentista) cboDentistas.getSelectedItem());
 
+			em.getTransaction().begin();
+			em.persist(equipo);
+			em.getTransaction().commit();
+
+			mensajeInfo("Equipo Dental registrado");
+			limpiar();
+		} catch (Exception e) {
+			mensajeError(e.getMessage());
+		} finally {
+			em.close();
+		}
 	}
 
 	void buscar() {
-
+		EntityManager em = JPAUtil.getEntityManager();
+		try {
+			EquipoDental equipo = em.find(EquipoDental.class, Integer.parseInt(txtNroEquipo.getText()));
+			if (equipo == null) {
+				mensajeAdvertencia("Equipo Dental no encontrado");
+				return;
+			}
+			txtNombre.setText(equipo.getNombre());
+			txtCosto.setText(equipo.getCosto().toString());
+			cboEstados.setSelectedItem(equipo.getEstado());
+			txtFechaAdquisicion.setText(formato.format(equipo.getFechaAdquisicion()));
+			seleccionarDentista(equipo.getDentista());
+			habilitarOk();
+		} catch (Exception e) {
+			mensajeError(e.getMessage());
+		} finally {
+			em.close();
+		}
 	}
 
 	void modificar() {
+		EntityManager em = JPAUtil.getEntityManager();
+		try {
+			EquipoDental equipo = em.find(EquipoDental.class, Integer.parseInt(txtNroEquipo.getText()));
+			equipo.setNombre(txtNombre.getText());
+			equipo.setCosto(new BigDecimal(txtCosto.getText()));
+			equipo.setEstado(cboEstados.getSelectedItem().toString());
+			equipo.setFechaAdquisicion(formato.parse(txtFechaAdquisicion.getText()));
+			equipo.setDentista((Dentista) cboDentistas.getSelectedItem());
 
+			em.getTransaction().begin();
+			em.merge(equipo);
+			em.getTransaction().commit();
+
+			mensajeInfo("Equipo Dental actualizado");
+			limpiar();
+		} catch (Exception e) {
+			mensajeError(e.getMessage());
+		} finally {
+			em.close();
+		}
 	}
 
 	void eliminar() {
 
+	}
+
+	String descripcionEstado(String estado) {
+		if (estado.equals("N")) {
+			return "Nuevo";
+		}
+		if (estado.equals("A")) {
+			return "Alquilado";
+		}
+		if (estado.equals("R")) {
+			return "Reparado";
+		}
+		return "Segunda";
+	}
+
+	void seleccionarDentista(Dentista dentista) {
+		if (dentista == null) {
+			return;
+		}
+		for (int i = 0; i < cboDentistas.getItemCount(); i++) {
+			Dentista item = (Dentista) cboDentistas.getItemAt(i);
+			if (item.getIdDentista().equals(dentista.getIdDentista())) {
+				cboDentistas.setSelectedIndex(i);
+			}
+		}
 	}
 
 	void habilitarEntradas(boolean sino) {

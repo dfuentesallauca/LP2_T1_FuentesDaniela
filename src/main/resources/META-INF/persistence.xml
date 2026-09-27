@@ -5,6 +5,10 @@
 	<persistence-unit name="mysqlconexion"
 		transaction-type="RESOURCE_LOCAL">
 
+		<class>entidades.Especialidad</class>
+		<class>entidades.Dentista</class>
+		<class>entidades.EquipoDental</class>
+
 		<properties>
 			<!-- MySQL -->
 			<property name="javax.persistence.jdbc.driver"
